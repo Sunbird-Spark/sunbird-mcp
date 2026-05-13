@@ -14,7 +14,7 @@ import time
 from mcp.server.fastmcp import FastMCP
 
 from config.env import env
-from client.sunbird_client import SunbirdApiError, KeycloakAuthError, InvalidTokenError, resolve_channel_id
+from client.sunbird_client import SunbirdApiError, KeycloakAuthError, InvalidTokenError, resolve_channel_id, resolve_loggedin_kong_token
 from tools.search_content import search_content
 from tools.get_course_outline import get_course_outline
 from tools.get_quiz_questions import get_quiz_questions
@@ -393,6 +393,8 @@ async def tool_get_my_learning_summary(user_token: str) -> str:
 async def main() -> None:
     print("[sunbird-mcp] Resolving channel ID...")
     await resolve_channel_id()
+    print("[sunbird-mcp] Registering loggedin Kong consumer token...")
+    await resolve_loggedin_kong_token()
     print(f"[sunbird-mcp] Starting server on port {env.MCP_PORT}...")
     await mcp.run_streamable_http_async()
 

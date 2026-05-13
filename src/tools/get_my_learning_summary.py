@@ -6,7 +6,7 @@ Uses GET /course/v1/user/enrollment/list/{userId} — same as the portal's My Le
 """
 from __future__ import annotations
 
-from client.sunbird_client import SunbirdApiError, authenticated_get, extract_sunbird_user_id
+from client.sunbird_client import SunbirdApiError, InvalidTokenError, authenticated_get, extract_sunbird_user_id
 from schemas.tool_schemas import EnrolledCourse, GetMyLearningSummaryInput, GetMyLearningSummaryOutput
 
 _STATUS_MAP = {0: "not_started", 1: "in_progress", 2: "completed"}
@@ -38,8 +38,9 @@ def _parse_course(item: dict) -> EnrolledCourse:
 
 
 async def get_my_learning_summary(params: GetMyLearningSummaryInput) -> GetMyLearningSummaryOutput:
-    user_id = extract_sunbird_user_id(params.user_token)
-    if not user_id:
+    try:
+        user_id = extract_sunbird_user_id(params.user_token)
+    except InvalidTokenError:
         return GetMyLearningSummaryOutput(
             user_id="",
             total_enrolled=0,

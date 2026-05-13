@@ -21,7 +21,8 @@ def _require_https(value: str, name: str) -> str:
 class Settings(BaseSettings):
     KONG_URL: str
     KONG_ANONYMOUS_TOKEN: str
-    KONG_LOGGEDIN_TOKEN: str = ""  # Portal's KONG_LOGGEDIN_FALLBACK_TOKEN — used for authenticated writes
+    KONG_LOGGEDIN_TOKEN: str = ""                # Portal's KONG_LOGGEDIN_FALLBACK_TOKEN
+    KONG_LOGGEDIN_DEVICE_REGISTER_TOKEN: str = ""  # Portal's KONG_LOGGEDIN_DEVICE_REGISTER_TOKEN — used to register a portal_loggedin consumer token at startup
     SUNBIRD_CHANNEL_ID: str = ""
     APP_ID: str = "local.sunbird.mcp"
     MCP_PORT: int = 3002

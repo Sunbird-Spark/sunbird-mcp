@@ -2,17 +2,20 @@
 Async HTTP client layer for Sunbird Kong gateway and Keycloak auth.
 
 Public surface:
-  kong_get / kong_post          — anonymous requests
-  authenticated_get / post      — requests with a logged-in user token
-  keycloak_refresh              — Keycloak refresh-token grant
-  decode_jwt_payload            — decode JWT claims without signature verification
-  extract_sunbird_user_id       — extract bare UUID from a Keycloak JWT
-  resolve_channel_id            — called once at server startup
+  kong_get / kong_post              — anonymous requests
+  authenticated_get / post / patch  — requests with a logged-in user token
+  keycloak_refresh                  — Keycloak refresh-token grant
+  decode_jwt_payload                — decode JWT claims without signature verification
+  extract_sunbird_user_id           — extract bare UUID from a Keycloak JWT
+  resolve_channel_id                — called once at server startup
+  resolve_loggedin_kong_token       — called once at server startup; registers portal_loggedin consumer
 """
 from __future__ import annotations
 
 import base64
+import binascii
 import json
+import uuid
 from urllib.parse import urlencode
 
 import httpx
@@ -21,6 +24,7 @@ from config.env import env
 
 # Module-level state
 _channel_id: str = ""
+_loggedin_kong_token: str = ""   # registered portal_loggedin consumer token
 _client: httpx.AsyncClient | None = None
 
 
@@ -104,6 +108,48 @@ async def resolve_channel_id() -> None:
         ) from exc
 
 
+async def resolve_loggedin_kong_token() -> None:
+    """
+    Mirrors portal's generateLoggedInKongToken() — registers a portal_loggedin
+    consumer credential with Kong and caches the token for the lifetime of this process.
+    Falls back to KONG_LOGGEDIN_TOKEN (static fallback) if registration is not configured.
+    Called once at server startup alongside resolve_channel_id().
+    """
+    global _loggedin_kong_token
+
+    if not env.KONG_LOGGEDIN_DEVICE_REGISTER_TOKEN:
+        _loggedin_kong_token = env.KONG_LOGGEDIN_TOKEN
+        if _loggedin_kong_token:
+            print("[sunbird-mcp] Loggedin Kong token loaded from env (static fallback).")
+        else:
+            print("[sunbird-mcp] WARNING: KONG_LOGGEDIN_DEVICE_REGISTER_TOKEN not set — authenticated tools will use anonymous token and may fail.")
+        return
+
+    client = _get_client()
+    session_key = f"sunbird-mcp-{uuid.uuid4().hex}"
+    try:
+        resp = await client.post(
+            "/api-manager/v2/consumer/portal_loggedin/credential/register",
+            json={"request": {"key": session_key}},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {env.KONG_LOGGEDIN_DEVICE_REGISTER_TOKEN}",
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        status = data.get("params", {}).get("status")
+        token = data.get("result", {}).get("token")
+        if status == "successful" and token:
+            _loggedin_kong_token = token
+            print("[sunbird-mcp] Loggedin Kong token registered successfully.")
+            return
+        raise SunbirdApiError(200, "ERR_KONG_REGISTER", f"Unexpected registration response: {data}")
+    except (httpx.HTTPStatusError, SunbirdApiError) as exc:
+        print(f"[sunbird-mcp] WARNING: Loggedin Kong token registration failed ({exc}). Falling back to static token.")
+        _loggedin_kong_token = env.KONG_LOGGEDIN_TOKEN
+
+
 async def kong_get(path: str) -> dict:
     """HTTP GET to Kong gateway with anonymous auth + channel headers."""
     client = _get_client()
@@ -132,15 +178,24 @@ async def kong_post(path: str, body: dict) -> dict:
 
 def _auth_headers(user_token: str) -> dict[str, str]:
     """
-    Headers for authenticated Kong requests.
-    Uses KONG_LOGGEDIN_TOKEN as the bearer when available (matches portal behaviour
-    for write APIs). Falls back to the anonymous token for read-only calls.
+    Mirrors portal's decorateRequestHeaders() + getBearerToken():
+    - Authorization: Bearer = portal_loggedin Kong consumer token (registered at startup)
+    - x-authenticated-user-token / x-auth-token = user's Keycloak access token
+    - X-Authenticated-Userid = bare user UUID (required by Kong ACL plugin)
+    These are two distinct tokens; sending the Keycloak token as Bearer causes
+    "You cannot consume this service" because it's not a registered Kong consumer.
     """
-    bearer = env.KONG_LOGGEDIN_TOKEN or env.KONG_ANONYMOUS_TOKEN
+    bearer = _loggedin_kong_token or env.KONG_LOGGEDIN_TOKEN or env.KONG_ANONYMOUS_TOKEN
+    try:
+        user_id = extract_sunbird_user_id(user_token)
+    except InvalidTokenError:
+        user_id = ""
     return {
         **_channel_header(),
         "Authorization": f"Bearer {bearer}",
         "x-authenticated-user-token": user_token,
+        "x-auth-token": user_token,
+        "X-Authenticated-Userid": user_id,
     }
 
 
@@ -198,7 +253,7 @@ def decode_jwt_payload(token: str) -> dict:
         # Restore missing base64 padding
         payload_b64 += "=" * (4 - len(payload_b64) % 4)
         return json.loads(base64.urlsafe_b64decode(payload_b64))
-    except (ValueError, json.JSONDecodeError) as exc:
+    except (ValueError, binascii.Error, json.JSONDecodeError) as exc:
         raise InvalidTokenError(f"JWT payload could not be decoded: {exc}") from exc
 
 
