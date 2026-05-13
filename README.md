@@ -153,11 +153,15 @@ Edit `src/.env` with your values (see `.env.example` for all variables):
 
 ```dotenv
 KONG_URL=https://your-sunbird-instance/api
-KONG_ANONYMOUS_TOKEN=eyJhbGci...
+KONG_ANONYMOUS_TOKEN=eyJhbGci...           # kid: portal_anonymous_fallback_token
+KONG_LOGGEDIN_TOKEN=eyJhbGci...            # kid: portal_loggedin_fallback_token
+KONG_LOGGEDIN_DEVICE_REGISTER_TOKEN=eyJhbGci...  # kid: portal_loggedin_register
 KEYCLOAK_ISSUER_URL=https://your-keycloak/auth/realms/sunbird
 KEYCLOAK_CLIENT_ID=android
 MCP_PORT=3002
 ```
+
+> `KONG_LOGGEDIN_TOKEN` and `KONG_LOGGEDIN_DEVICE_REGISTER_TOKEN` are required for all authenticated tools (`tool_get_my_enrollments`, `tool_get_my_learning_summary`, etc.). Without them Kong returns *"You cannot consume this service"*. Both tokens come from your Sunbird portal's environment — see `.env.example` for details.
 
 **4. Start the server**
 
@@ -255,6 +259,69 @@ tail -50 ~/Library/Logs/Claude/mcp-server-sunbird-spark-py.log
   }
 }
 ```
+
+### Gemini CLI
+
+**Requirements:** Node.js v20+ (v22 recommended)
+
+**Step 1 — Install Gemini CLI**
+
+```bash
+# Ensure you are on Node 20+ (nvm example)
+nvm use 22
+
+npm install -g @google/gemini-cli
+gemini --version   # should print 0.42.0 or later
+```
+
+**Step 2 — Configure MCP server**
+
+Add the server to `~/.gemini/settings.json` (create the file if it doesn't exist):
+
+```json
+{
+  "mcpServers": {
+    "sunbird-spark": {
+      "httpUrl": "http://localhost:3002/mcp"
+    }
+  }
+}
+```
+
+**Step 3 — Start the MCP server** (if not already running)
+
+```bash
+cd src
+source ../venv/bin/activate
+python server.py
+```
+
+**Step 4 — Launch Gemini CLI**
+
+```bash
+gemini
+```
+
+On first launch you will be prompted to sign in with Google. Once authenticated, all 14 Sunbird tools are available in the conversation.
+
+**Example prompts inside Gemini:**
+
+```
+> Find data engineering courses in English
+> Build a beginner learning path for Apache Kafka
+> Show me the structure of course do_xxxxx
+> Log me in
+> Show my enrolled courses
+> Enrol me in this course
+```
+
+**Troubleshooting**
+
+| Issue | Fix |
+|-------|-----|
+| `SyntaxError: Invalid regular expression flags` | You are on Node < 20. Run `nvm use 22` first. |
+| `ECONNREFUSED localhost:3002` | MCP server is not running — start it with `python server.py` |
+| Tools not appearing in Gemini | Verify `~/.gemini/settings.json` has the `mcpServers` block and restart `gemini` |
 
 ---
 
