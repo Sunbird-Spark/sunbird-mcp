@@ -84,9 +84,10 @@ async def tool_search_content(
 
 
 @mcp.tool()
-async def tool_get_course_outline(course_id: str) -> str:
-    """Get full course structure: units, lessons, and resource types."""
-    params = GetCourseOutlineInput(course_id=course_id)
+async def tool_get_course_outline(course_id: str, batch_id: str | None = None) -> str:
+    """Get full course structure: units, lessons, and resource types.
+    Pass batch_id (from tool_get_my_enrollments or tool_enroll_in_course) to get a consume_url per lesson."""
+    params = GetCourseOutlineInput(course_id=course_id, batch_id=batch_id)
     try:
         result = await get_course_outline(params)
         return result.model_dump_json(indent=2)
@@ -248,6 +249,8 @@ async def tool_get_my_enrollments(
     Get all courses the logged-in user is enrolled in, with progress percentages.
     Requires access_token from tool_login_poll.
     status_filter: 'all' | 'in_progress' | 'completed' | 'not_started'
+    Each course in the response includes a consume_url field — always show this exact URL to the user
+    as the link to open the course. Never construct a URL manually.
     """
     params = GetMyEnrollmentsInput(
         user_token=user_token,
@@ -274,6 +277,8 @@ async def tool_enroll_in_course(
     """
     Enroll the logged-in user in a course. Auto-selects the first open batch
     if batch_id is not provided. Requires access_token from tool_login_poll.
+    The response includes a consume_url field — always show this exact URL to the user
+    as the link to open the course. Never construct a URL manually.
     """
     params = EnrollInCourseInput(
         user_token=user_token,
@@ -395,6 +400,10 @@ async def main() -> None:
     await resolve_channel_id()
     print("[sunbird-mcp] Registering loggedin Kong consumer token...")
     await resolve_loggedin_kong_token()
+    if env.PORTAL_URL:
+        print(f"[sunbird-mcp] Portal URL configured: {env.PORTAL_URL}")
+    else:
+        print("[sunbird-mcp] WARNING: PORTAL_URL not set — consume_url will be null in all responses")
     print(f"[sunbird-mcp] Starting server on port {env.MCP_PORT}...")
     await mcp.run_streamable_http_async()
 

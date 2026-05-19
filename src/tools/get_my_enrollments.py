@@ -5,7 +5,11 @@ Uses GET /course/v1/user/enrollment/list/{userId} — same endpoint as the porta
 """
 from __future__ import annotations
 
-from client.sunbird_client import SunbirdApiError, InvalidTokenError, authenticated_get, extract_sunbird_user_id
+from client.sunbird_client import (
+    SunbirdApiError, InvalidTokenError,
+    authenticated_get, extract_sunbird_user_id,
+    build_course_url,
+)
 from schemas.tool_schemas import EnrolledCourse, GetMyEnrollmentsInput, GetMyEnrollmentsOutput
 
 _STATUS_MAP = {0: "not_started", 1: "in_progress", 2: "completed"}
@@ -27,13 +31,18 @@ def _parse_course(item: dict) -> EnrolledCourse:
 
     certs = item.get("issuedCertificates") or []
 
+    course_id = item.get("courseId", "")
+    batch_id = item.get("batchId", "")
+
     return EnrolledCourse(
-        course_id=item.get("courseId", ""),
+        course_id=course_id,
         course_name=name,
         completion_percentage=completion_pct,
         status=status_str,
         enrolled_date=item.get("enrolledDate", ""),
         has_certificate=len(certs) > 0,
+        batch_id=batch_id,
+        consume_url=build_course_url(course_id),
     )
 
 

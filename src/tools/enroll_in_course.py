@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from client.sunbird_client import SunbirdApiError, authenticated_post, extract_sunbird_user_id, kong_post
+from client.sunbird_client import SunbirdApiError, authenticated_post, build_course_url, extract_sunbird_user_id, kong_post
 from schemas.tool_schemas import EnrollInCourseInput, EnrollInCourseOutput
 
 
@@ -103,11 +103,16 @@ async def enroll_in_course(params: EnrollInCourseInput) -> EnrollInCourseOutput:
         raw = str(e)
         # Already enrolled — treat as success
         if "USER_ALREADY_ENROLLED_COURSE" in raw or "already Enrolled" in raw:
+            url = build_course_url(params.course_id)
+            msg = "Already enrolled in this course."
+            if url:
+                msg += f" Open it here: {url}"
             return EnrollInCourseOutput(
                 success=True,
                 course_id=params.course_id,
                 batch_id=batch_id,
-                message="Already enrolled in this course.",
+                message=msg,
+                consume_url=url,
             )
         return EnrollInCourseOutput(
             success=False,
@@ -117,9 +122,14 @@ async def enroll_in_course(params: EnrollInCourseInput) -> EnrollInCourseOutput:
         )
 
     label = f" ({batch_name})" if batch_name else ""
+    url = build_course_url(params.course_id)
+    msg = f"Successfully enrolled in course {params.course_id}, batch{label} {batch_id}."
+    if url:
+        msg += f" Open it here: {url}"
     return EnrollInCourseOutput(
         success=True,
         course_id=params.course_id,
         batch_id=batch_id,
-        message=f"Successfully enrolled in course {params.course_id}, batch{label} {batch_id}.",
+        message=msg,
+        consume_url=url,
     )

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     SUNBIRD_CHANNEL_ID: str = ""
     APP_ID: str = "local.sunbird.mcp"
     MCP_PORT: int = 3002
+    PORTAL_URL: str = ""  # e.g. https://test.sunbirded.org — used to build course consume URLs
 
     # Keycloak direct auth — required only when tool_login is used
     KEYCLOAK_ISSUER_URL: str = ""     # e.g. https://host/auth/realms/sunbird
@@ -41,6 +42,11 @@ class Settings(BaseSettings):
     @classmethod
     def keycloak_url_must_be_https(cls, v: str) -> str:
         return _require_https(v, "KEYCLOAK_ISSUER_URL")
+
+    @field_validator("PORTAL_URL")
+    @classmethod
+    def portal_url_must_be_https(cls, v: str) -> str:
+        return _require_https(v, "PORTAL_URL")
 
     model_config = SettingsConfigDict(
         env_file=".env",

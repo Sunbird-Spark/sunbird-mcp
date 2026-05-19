@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 
-from client.sunbird_client import SunbirdApiError, kong_get
+from client.sunbird_client import SunbirdApiError, build_consume_url, kong_get
 from schemas.tool_schemas import (
     GetCourseOutlineInput,
     GetCourseOutlineOutput,
@@ -110,6 +110,7 @@ async def get_course_outline(params: GetCourseOutlineInput) -> GetCourseOutlineO
                         type=leaf.get("contentType", ""),
                         mime_type=mime,
                         estimated_minutes=_duration_to_minutes(leaf.get("duration")),
+                        consume_url=build_consume_url(params.course_id, params.batch_id or "", leaf_id),
                     )
                 )
             units.append(

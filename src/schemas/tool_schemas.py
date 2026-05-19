@@ -42,6 +42,9 @@ class GetCourseOutlineInput(BaseModel):
     course_id: str = Field(
         ..., min_length=1, description="Sunbird content identifier, e.g. do_xxxxx"
     )
+    batch_id: str | None = Field(
+        default=None, description="Enrolled batch ID; enables consume_url per lesson"
+    )
 
 
 class OutlineLesson(BaseModel):
@@ -50,6 +53,7 @@ class OutlineLesson(BaseModel):
     type: str
     mime_type: str
     estimated_minutes: float | None
+    consume_url: str | None = None
 
 
 class OutlineUnit(BaseModel):
@@ -251,6 +255,8 @@ class EnrolledCourse(BaseModel):
     status: Literal["not_started", "in_progress", "completed"]
     enrolled_date: str
     has_certificate: bool
+    batch_id: str = ""
+    consume_url: str | None = None
 
 
 class GetMyEnrollmentsOutput(BaseModel):
@@ -275,6 +281,7 @@ class EnrollInCourseOutput(BaseModel):
     course_id: str
     batch_id: str
     message: str
+    consume_url: str | None = None
 
 
 # ── Tool 10 (auth): track_content_progress ───────────────────────────────────

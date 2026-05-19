@@ -22,6 +22,33 @@ import httpx
 
 from config.env import env
 
+def _portal_base() -> str:
+    """Return the portal base URL.
+    Uses PORTAL_URL if set; otherwise derives the origin from KONG_URL (strips path)."""
+    if env.PORTAL_URL:
+        return env.PORTAL_URL.rstrip("/")
+    # KONG_URL is always required — derive portal origin from it
+    from urllib.parse import urlparse
+    parsed = urlparse(env.KONG_URL)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def build_course_url(course_id: str) -> str | None:
+    """Return portal course URL: {portal_base}/collection/{course_id}."""
+    base = _portal_base()
+    if not base or not course_id:
+        return None
+    return f"{base}/collection/{course_id}"
+
+
+def build_consume_url(course_id: str, batch_id: str, content_id: str) -> str | None:
+    """Return deep-link consume URL for a specific lesson, or None if any ID is missing."""
+    base = _portal_base()
+    if not base or not course_id or not batch_id or not content_id:
+        return None
+    return f"{base}/collection/{course_id}/batch/{batch_id}/content/{content_id}"
+
+
 # Module-level state
 _channel_id: str = ""
 _loggedin_kong_token: str = ""   # registered portal_loggedin consumer token
