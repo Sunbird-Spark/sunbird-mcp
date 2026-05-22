@@ -58,51 +58,7 @@ Login uses **RFC 8628 OAuth 2.0 Device Authorization Flow** via Keycloak.
 
 ## Architecture
 
-```
-Claude / MCP Client
-       │  POST /mcp  (Streamable HTTP, stateless)
-       ▼
- ┌─────────────────────────────────────────────────────────┐
- │  FastMCP Server  :3002                                  │
- │                                                         │
- │  Anonymous Tools (6)          Authenticated Tools (7)   │
- │  ─────────────────            ──────────────────────    │
- │  search_content               login_start  ──────────┐  │
- │  get_course_outline           login_poll   ──────────┤  │
- │  get_quiz_questions           refresh_token ─────────┤  │
- │  build_learning_path          get_my_enrollments      │  │
- │  navigate_course              enroll_in_course        │  │
- │  get_batch_list               track_content_progress  │  │
- │                               get_my_learning_summary │  │
- │                               submit_assessment       │  │
- └──────────────┬────────────────────────┬───────────────┘  │
-                │                        │                   │
-                │ anon bearer            │ anon bearer       │
-                │                        │ + x-authenticated │
-                │                        │   -user-token     │
-                ▼                        ▼                   │
-        Sunbird Kong Gateway ◄───────────┘                   │
-                │                                            │
-                ▼                                            ▼
-       Sunbird Backend APIs                Keycloak (device auth)
-                │
-                ▼
-  Telemetry  /action/data/v3/telemetry
-```
-
-**Key architectural decisions:**
-
-| Decision | Choice | Reason |
-|----------|--------|--------|
-| Transport | Streamable HTTP | Supports multiple concurrent clients; MCP spec 2025-03-26+ |
-| Session mode | Stateless | No server-side session state; each call is self-contained |
-| Auth flow | RFC 8628 device code | Password never touches AI layer; works with Keycloak out of the box |
-| Token validation | Kong server-side | Kong plugin validates JWT against Keycloak JWKS; no client-side crypto needed |
-| Anonymous token | Per-request header | Allows token rotation without server restart |
-| Channel ID | Resolved once at startup, cached | Avoids per-request org search overhead |
-| Level filter | Score-based, not API filter | Sunbird ES maps `level` as numeric; string filter returns HTTP 500 |
-| Parallel fetches | `asyncio.gather(return_exceptions=True)` | One failed hierarchy fetch never kills the full response |
-| Question format | Auto-detected | Handles QuestionSet v2 and legacy SelfAssess (ECML) transparently |
+![Sunbird Spark MCP Architecture](Spark-MCP.png)
 
 ---
 
